@@ -1,45 +1,35 @@
 import cv2
 import numpy as np
-import sklearn
-import sklearn.cluster
-
-
-def silhouette_coefficient():
-    raise NotImplementedError
 
 
 class ObjectTracker:
     def __init__(self):
         self.clustering = None
-        self.centers = None
+        self.objects = None
 
-    def find_clusters(self, img):
-        clustering = sklearn.cluster.DBSCAN(eps=0.5, min_samples=5).fit(img)
-        if self.clustering is None:
-            self.clustering = clustering
-        
-        num_clusters = len(set(clustering.labels_)) - (1 if -1 in clustering.labels_ else 0)
-        cluster_centers_x = np.zeros(num_clusters)
-        cluster_centers_y = np.zeros(num_clusters)
-
-        for idx, label in enumerate(clustering.labels_):
-            if label == -1:
-                continue
-            cluster_centers_x[label] += idx
-            cluster_centers_y[label] += idx
-
-        self.clustering = clustering
-        return zip(cluster_centers_x, cluster_centers_y)
-
-    def get_countour_centers(self, img):
+    def get_contour_centers(img):
         contours, hierarchy = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        centers = [np.mean(contour, axis=0) for contour in contours]
-        #print(np.array(contours).shape)
-        #print(contours)
-        #print(len(hierarchy))
-        if self.centers is not None:
-            self.centers = centers
-        return centers
+        return [np.mean(contour, axis=0) for contour in contours]
+
+    def get_next_state_predictions(self):
+        raise NotImplementedError
+
+    def assign_object_ids(self):
+        raise NotImplementedError
+
+    def compute_velocities(self, tagged_centers):
+        raise NotImplementedError
+
+    def get_velocities(self):
+        raise NotImplementedError
+
+    def get_centers(self):
+        raise NotImplementedError
+
+    def add_frame_to_tracker(self, img):
+        centers = self.get_contour_centers(img)
+        tagged_centers = self.assign_object_ids(centers)
+        self.compute_velocities(tagged_centers)
 
 
 orig_img = cv2.imread('/home/chaitanya/Downloads/circles.jpg')
@@ -48,7 +38,6 @@ thresh, img = cv2.threshold(img, 127, 255, 0)
 tracker = ObjectTracker()
 centers = list(tracker.get_countour_centers(img))
 centers = np.array(centers).squeeze()
-#print(centers)
 
 for point in centers:
     cv2.circle(orig_img, (int(point[0]), int(point[1])), 5, (255,0,0))
