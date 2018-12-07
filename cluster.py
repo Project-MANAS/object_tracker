@@ -42,7 +42,7 @@ class ObjectTracker:
     def get_objects(self):
         return self.objects
 
-    def add_frame_to_tracker(self, img):
+    def track_frame(self, img):
         centers = ObjectTracker.get_contour_centers(img)
         tagged_centers = []
         next_state_predictions = None
@@ -68,7 +68,7 @@ def main():
         img = cv2.cvtColor(orig_img, cv2.COLOR_BGR2GRAY)
         thresh, img = cv2.threshold(img, 127, 255, 0)
         tracker = ObjectTracker()
-        tracker.add_frame_to_tracker(img)
+        tracker.track_frame(img)
         centers = [tuple(obj[1][0]) for obj in tracker.get_objects()]
 
         for point in centers:
