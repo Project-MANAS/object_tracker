@@ -1,13 +1,20 @@
 import sys
+import time
 import cv2
 import numpy as np
+import collections
+
+TrackedObject = collections.namedtuple("TrackedObject",["id","state","tracker"])
 
 
 class ObjectTracker:
-    def __init__(self):
-        self.clustering = None
-        self.objects = None
-        self.trackers = []
+    def __init__(self, x_min=0, y_min=0, x_max=0, y_max=0, dist_threshold=10):
+        self.objects = []
+        self.x_min = x_min
+        self.x_max = x_max
+        self.y_min = y_min
+        self.y_max = y_max
+        self.dist_threshold = dist_threshold
 
     @staticmethod
     def get_contour_centers(img):
@@ -28,28 +35,7 @@ class ObjectTracker:
         return ((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2)**0.5
 
     @staticmethod
-    def assign_object_ids(centers, object_next_state):
-
-        """
-        Match objects known to tracker to newly detected centers
-
-        :param centers: A list of newly detected centers
-        :param object_next_state: The predicted next state of objects
-        :return: A list of tuples of object ids paired with centers
-        """
-
-        annotated_centers = []
-
-        for object in object_next_state:
-            object_center_idx = 0
-            for i, center in enumerate(centers):
-                if ObjectTracker.dist(object[1], center) < ObjectTracker.dist(object[1], centers[object_center_idx]):
-                    object_center_idx = i
-            annotated_centers.append((object[0],centers[object_center_idx]))
-
-        return annotated_centers
-
-    def add_object(self, center):
+    def create_object(center):
 
         """
         Add a previously unknown object to the tracker
@@ -57,29 +43,56 @@ class ObjectTracker:
         :return: None
         """
 
-        kalman_filter = cv2.KalmanFilter(4,2,0)
-        kalman_filter.transitionMatrix = np.array([[1,0,1,0],
-                                            [0,1,0,1],
-                                            [0,0,1,0],
-                                            [0,0,0,1]])
+        kalman_filter = cv2.KalmanFilter(4, 2, 0)
+        kalman_filter.transitionMatrix = np.array([[1, 0, 1, 0],
+                                                   [0, 1, 0, 1],
+                                                   [0, 0, 1, 0],
+                                                   [0, 0, 0, 1]])
         kalman_filter.measurementMatrix = np.array([[1., 0., 0., 0.],
-                                             [0., 1., 0., 0.]])
+                                                    [0., 1., 0., 0.]
+                                                    ])
         kalman_filter.processNoiseCov = 1e-5 * np.eye(4)
-        kalman_filter.measurementNoiseCov = 1e-1 * np.ones((1,2))
-        kalman_filter.errorCovPost = 1. * np.ones((4,4))
-        kalman_filter.statePost = 0.1 * np.randn(4,1)
-        kalman_filter.correct(list(center))
-        self.trackers.append(kalman_filter)
-
+        kalman_filter.measurementNoiseCov = 1e-1 * np.ones((1, 2))
+        kalman_filter.errorCovPost = 1. * np.ones((4, 4))
+        kalman_filter.statePost = 0.1 * np.random.randn(4, 1)
+        kalman_filter.correct(np.array(center, dtype=np.float32))
+        init_state = np.array(list(center) + [0.0, 0.0])  # [x, y] + [dx, dy]
+        obj_id = time.time()
+        return TrackedObject(obj_id, init_state, kalman_filter)
 
     def get_next_state_predictions(self):
-        raise NotImplementedError
+        predicted_objects = []
+        for obj in self.objects:
+            prediction = obj.tracker.predict()
+            predicted_objects.append(TrackedObject(obj.id, prediction, obj.tracker))
 
-    def update_tracked_objects(self, annotated_centers, object_next_states):
-        self.objects = [tuple(list(center) + [0]) for center in annotated_centers]
+        return predicted_objects
 
-    def compute_velocities(self, tagged_centers):
-        raise NotImplementedError
+    def update_tracked_objects(self, centers, predicted_objects):
+        updated_objects = []
+        for obj in predicted_objects:
+            if obj.state[0] < self.x_min  \
+                    or obj.state[0] > self.x_max \
+                    or obj.state[1] < self.y_min \
+                    or obj.state[1] > self.y_max:
+                continue  # stop tracking objects outside the tracking frame
+
+            closest_center_idx = 0
+            for i, center in enumerate(centers):
+                if ObjectTracker.dist(obj[1], center) < \
+                        ObjectTracker.dist(obj[1], centers[closest_center_idx]):
+                    closest_center_idx = i
+
+            obj.tracker.correct(centers[closest_center_idx])
+            updated_objects.append(obj)
+
+            # prevent the same center from being associated with two objects
+            centers = centers[0:closest_center_idx] + centers[closest_center_idx+1:]
+
+        for center in centers:
+            print(center[0])
+            updated_objects.append(ObjectTracker.create_object(center[0]))
+        self.objects = updated_objects
 
     def get_objects(self):
         return self.objects
@@ -93,15 +106,8 @@ class ObjectTracker:
         """
 
         centers = ObjectTracker.get_contour_centers(img)
-        tagged_centers = []
-        next_state_predictions = None
-        if self.objects is not None:
-            next_state_predictions = self.get_next_state_predictions()
-            tagged_centers = ObjectTracker.assign_object_ids(centers, next_state_predictions)
-        else:
-            tagged_centers = list(enumerate(centers))
-
-        self.update_tracked_objects(tagged_centers, next_state_predictions)
+        next_state_predictions = self.get_next_state_predictions()
+        self.update_tracked_objects(centers, next_state_predictions)
 
 
 def main():
@@ -113,12 +119,13 @@ def main():
         return
     ret = True
     while vid.isOpened() and ret is True:
+        print("Reading...")
         ret, orig_img = vid.read()
         img = cv2.cvtColor(orig_img, cv2.COLOR_BGR2GRAY)
         thresh, img = cv2.threshold(img, 127, 255, 0)
         tracker = ObjectTracker()
         tracker.track_frame(img)
-        centers = [tuple(obj[1][0]) for obj in tracker.get_objects()]
+        centers = [tuple(obj[1][0:2]) for obj in tracker.get_objects()]
 
         for point in centers:
             if point is None:
