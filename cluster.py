@@ -7,6 +7,7 @@ class ObjectTracker:
     def __init__(self):
         self.clustering = None
         self.objects = None
+        self.trackers = []
 
     @staticmethod
     def get_contour_centers(img):
@@ -29,6 +30,22 @@ class ObjectTracker:
             annotated_centers.append((object[0],centers[object_center_idx]))
 
         return annotated_centers
+
+    def add_object(self, center):
+        kalman_filter = cv2.KalmanFilter(4,2,0)
+        kalman_filter.transitionMatrix = np.array([[1,0,1,0],
+                                            [0,1,0,1],
+                                            [0,0,1,0],
+                                            [0,0,0,1]])
+        kalman_filter.measurementMatrix = np.array([[1., 0., 0., 0.],
+                                             [0., 1., 0., 0.]])
+        kalman_filter.processNoiseCov = 1e-5 * np.eye(4)
+        kalman_filter.measurementNoiseCov = 1e-1 * np.ones((1,2))
+        kalman_filter.errorCovPost = 1. * np.ones((4,4))
+        kalman_filter.statePost = 0.1 * np.randn(4,1)
+        kalman_filter.correct(list(center))
+        self.trackers.append(kalman_filter)
+
 
     def get_next_state_predictions(self):
         raise NotImplementedError
