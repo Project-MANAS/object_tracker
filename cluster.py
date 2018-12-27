@@ -11,6 +11,15 @@ class ObjectTracker:
 
     @staticmethod
     def get_contour_centers(img):
+
+        """
+        Given a binary image with white filled in object silhouettes on a black background,
+        the function finds and returns centers of these objects as a list
+
+        :param img: A single channel image
+        :return: A list of object centers
+        """
+
         contours, hierarchy = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         return [np.mean(contour, axis=0) for contour in contours]
 
@@ -20,6 +29,15 @@ class ObjectTracker:
 
     @staticmethod
     def assign_object_ids(centers, object_next_state):
+
+        """
+        Match objects known to tracker to newly detected centers
+
+        :param centers: A list of newly detected centers
+        :param object_next_state: The predicted next state of objects
+        :return: A list of tuples of object ids paired with centers
+        """
+
         annotated_centers = []
 
         for object in object_next_state:
@@ -32,6 +50,13 @@ class ObjectTracker:
         return annotated_centers
 
     def add_object(self, center):
+
+        """
+        Add a previously unknown object to the tracker
+        :param center: The center of the new object
+        :return: None
+        """
+
         kalman_filter = cv2.KalmanFilter(4,2,0)
         kalman_filter.transitionMatrix = np.array([[1,0,1,0],
                                             [0,1,0,1],
@@ -60,6 +85,13 @@ class ObjectTracker:
         return self.objects
 
     def track_frame(self, img):
+
+        """
+        Track the position and velocity of objects in the given frame
+        :param img: A binary, single channel image
+        :return: None
+        """
+
         centers = ObjectTracker.get_contour_centers(img)
         tagged_centers = []
         next_state_predictions = None
