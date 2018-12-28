@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 import collections
 
-TrackedObject = collections.namedtuple("TrackedObject",["id","state","tracker"])
+TrackedObject = collections.namedtuple("TrackedObject", ["id", "state", "tracker"])
 
 
 class ObjectTracker:
@@ -43,20 +43,22 @@ class ObjectTracker:
         :return: None
         """
 
-        kalman_filter = cv2.KalmanFilter(4, 2, 0)
+        kalman_filter = cv2.KalmanFilter(4, 2, 0, cv2.CV_64F)
         kalman_filter.transitionMatrix = np.array([[1, 0, 1, 0],
                                                    [0, 1, 0, 1],
                                                    [0, 0, 1, 0],
-                                                   [0, 0, 0, 1]])
+                                                   [0, 0, 0, 1]], np.float64)
         kalman_filter.measurementMatrix = np.array([[1., 0., 0., 0.],
                                                     [0., 1., 0., 0.]
-                                                    ])
-        kalman_filter.processNoiseCov = 1e-5 * np.eye(4)
-        kalman_filter.measurementNoiseCov = 1e-1 * np.ones((1, 2))
-        kalman_filter.errorCovPost = 1. * np.ones((4, 4))
+                                                    ], np.float64)
+        # kalman_filter.processNoiseCov = 1e-5 * np.eye(4, dtype=np.float32)
+        # kalman_filter.measurementNoiseCov = 1e-1 * np.ones((1, 2), np.float32)
+        kalman_filter.errorCovPost = 1. * np.ones((4, 4), np.float64)
         kalman_filter.statePost = 0.1 * np.random.randn(4, 1)
-        kalman_filter.correct(np.array(center, dtype=np.float32))
-        init_state = np.array(list(center) + [0.0, 0.0])  # [x, y] + [dx, dy]
+        prediction = kalman_filter.predict()
+        print(prediction)
+        kalman_filter.correct(np.array(center, dtype=np.float64))
+        init_state = np.array(list(center) + [0.0, 0.0], np.float64)  # [x, y] + [dx, dy]
         obj_id = time.time()
         return TrackedObject(obj_id, init_state, kalman_filter)
 
@@ -71,11 +73,13 @@ class ObjectTracker:
     def update_tracked_objects(self, centers, predicted_objects):
         updated_objects = []
         for obj in predicted_objects:
+            # stop tracking objects outside the tracking frame
             if obj.state[0] < self.x_min  \
                     or obj.state[0] > self.x_max \
                     or obj.state[1] < self.y_min \
                     or obj.state[1] > self.y_max:
-                continue  # stop tracking objects outside the tracking frame
+                print("deleting object: " + str(obj.id))
+                continue
 
             closest_center_idx = 0
             for i, center in enumerate(centers):
@@ -85,12 +89,13 @@ class ObjectTracker:
 
             obj.tracker.correct(centers[closest_center_idx])
             updated_objects.append(obj)
+            print("Matched with object: " + str(obj.id))
 
             # prevent the same center from being associated with two objects
             centers = centers[0:closest_center_idx] + centers[closest_center_idx+1:]
 
         for center in centers:
-            print(center[0])
+            print("Creating new object for: " + str(center[0]))
             updated_objects.append(ObjectTracker.create_object(center[0]))
         self.objects = updated_objects
 
@@ -117,10 +122,12 @@ def main():
     except IndexError:
         print("path to video not provided")
         return
-    ret = True
-    while vid.isOpened() and ret is True:
+
+    while vid.isOpened():
         print("Reading...")
         ret, orig_img = vid.read()
+        if ret is False:
+            break
         img = cv2.cvtColor(orig_img, cv2.COLOR_BGR2GRAY)
         thresh, img = cv2.threshold(img, 127, 255, 0)
         tracker = ObjectTracker()
@@ -130,13 +137,12 @@ def main():
         for point in centers:
             if point is None:
                 continue
-            cv2.circle(orig_img, (int(point[0]), int(point[1])), 5, (255,0,0))
+            cv2.circle(orig_img, (int(point[0]), int(point[1])), 5, (255, 0, 0))
 
         cv2.imshow("output", orig_img)
-        cv2.waitKey(100)
+        cv2.waitKey(1)
     else:
         print("Unable to open video")
-
 
 
 if __name__ == "__main__":
