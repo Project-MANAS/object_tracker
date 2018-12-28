@@ -56,7 +56,7 @@ class ObjectTracker:
         kalman_filter.errorCovPost = 1. * np.ones((4, 4), np.float64)
         kalman_filter.statePost = 0.1 * np.random.randn(4, 1)
         prediction = kalman_filter.predict()
-        print(prediction)
+        #print(prediction)
         kalman_filter.correct(np.array(center, dtype=np.float64))
         init_state = np.array(list(center) + [0.0, 0.0], np.float64)  # [x, y] + [dx, dy]
         obj_id = time.time()
@@ -66,8 +66,9 @@ class ObjectTracker:
         predicted_objects = []
         for obj in self.objects:
             prediction = obj.tracker.predict()
+            print(prediction)
             predicted_objects.append(TrackedObject(obj.id, prediction, obj.tracker))
-
+        # print(predicted_objects)
         return predicted_objects
 
     def update_tracked_objects(self, centers, predicted_objects):
@@ -80,14 +81,23 @@ class ObjectTracker:
                     or obj.state[1] > self.y_max:
                 print("deleting object: " + str(obj.id))
                 continue
+                
+            # Not all objects we were tracking were detected in the frame
+            # Todo: Make sure matching of centers to objects works in this case
+            if not centers:
+                break
 
             closest_center_idx = 0
+            closest_center = np.squeeze(centers[closest_center_idx])
             for i, center in enumerate(centers):
-                if ObjectTracker.dist(obj[1], center) < \
-                        ObjectTracker.dist(obj[1], centers[closest_center_idx]):
+                center = np.squeeze(center)
+                closest_center = np.squeeze(centers[closest_center_idx])
+                obj_center = np.array([obj.state[0][0], obj.state[1][0]])
+                if ObjectTracker.dist(obj_center, center) < \
+                        ObjectTracker.dist(obj_center, closest_center):
                     closest_center_idx = i
 
-            obj.tracker.correct(centers[closest_center_idx])
+            obj.tracker.correct(closest_center)
             updated_objects.append(obj)
             print("Matched with object: " + str(obj.id))
 
@@ -123,6 +133,7 @@ def main():
         print("path to video not provided")
         return
 
+    tracker = ObjectTracker(x_max=1024, y_max=768)
     while vid.isOpened():
         print("Reading...")
         ret, orig_img = vid.read()
@@ -130,7 +141,6 @@ def main():
             break
         img = cv2.cvtColor(orig_img, cv2.COLOR_BGR2GRAY)
         thresh, img = cv2.threshold(img, 127, 255, 0)
-        tracker = ObjectTracker()
         tracker.track_frame(img)
         centers = [tuple(obj[1][0:2]) for obj in tracker.get_objects()]
 
