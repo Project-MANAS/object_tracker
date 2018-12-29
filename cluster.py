@@ -28,7 +28,7 @@ class ObjectTracker:
         """
 
         contours, hierarchy = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        return [np.mean(contour, axis=0) for contour in contours]
+        return [np.squeeze(np.mean(contour, axis=0)) for contour in contours]
 
     @staticmethod
     def dist(p1, p2):
@@ -51,14 +51,15 @@ class ObjectTracker:
         kalman_filter.measurementMatrix = np.array([[1., 0., 0., 0.],
                                                     [0., 1., 0., 0.]
                                                     ], np.float64)
-        # kalman_filter.processNoiseCov = 1e-5 * np.eye(4, dtype=np.float32)
-        # kalman_filter.measurementNoiseCov = 1e-1 * np.ones((1, 2), np.float32)
+        kalman_filter.processNoiseCov = 1e-5 * np.eye(4, dtype=np.float64)
+        kalman_filter.measurementNoiseCov = 1e-1 * np.eye(2, dtype=np.float64)
         kalman_filter.errorCovPost = 1. * np.ones((4, 4), np.float64)
         kalman_filter.statePost = 0.1 * np.random.randn(4, 1)
-        prediction = kalman_filter.predict()
-        #print(prediction)
-        kalman_filter.correct(np.array(center, dtype=np.float64))
         init_state = np.array(list(center) + [0.0, 0.0], np.float64)  # [x, y] + [dx, dy]
+        kalman_filter.statePre = init_state.transpose()
+        estimate = kalman_filter.correct(np.array(center, dtype=np.float64))
+        print("Estimate: " + str(estimate))
+        print("State: " + str(kalman_filter.statePost))
         obj_id = time.time()
         return TrackedObject(obj_id, init_state, kalman_filter)
 
@@ -66,8 +67,8 @@ class ObjectTracker:
         predicted_objects = []
         for obj in self.objects:
             prediction = obj.tracker.predict()
-            print(prediction)
-            predicted_objects.append(TrackedObject(obj.id, prediction, obj.tracker))
+            print("Prediction: " + str(prediction))
+            predicted_objects.append(TrackedObject(obj.id, np.transpose(prediction), obj.tracker))
         # print(predicted_objects)
         return predicted_objects
 
@@ -81,32 +82,32 @@ class ObjectTracker:
                     or obj.state[1] > self.y_max:
                 print("deleting object: " + str(obj.id))
                 continue
-                
+
             # Not all objects we were tracking were detected in the frame
             # Todo: Make sure matching of centers to objects works in this case
             if not centers:
                 break
 
             closest_center_idx = 0
-            closest_center = np.squeeze(centers[closest_center_idx])
             for i, center in enumerate(centers):
-                center = np.squeeze(center)
                 closest_center = np.squeeze(centers[closest_center_idx])
-                obj_center = np.array([obj.state[0][0], obj.state[1][0]])
+                obj_center = np.array([obj.state[0], obj.state[1]])
                 if ObjectTracker.dist(obj_center, center) < \
                         ObjectTracker.dist(obj_center, closest_center):
                     closest_center_idx = i
 
-            obj.tracker.correct(closest_center)
-            updated_objects.append(obj)
+            estimate = obj.tracker.correct(centers[closest_center_idx])
+
+            updated_objects.append(TrackedObject(obj.id, estimate, obj.tracker))
             print("Matched with object: " + str(obj.id))
 
             # prevent the same center from being associated with two objects
-            centers = centers[0:closest_center_idx] + centers[closest_center_idx+1:]
+            del centers[closest_center_idx]
+            # centers = centers[0:closest_center_idx] + centers[closest_center_idx+1:]
 
         for center in centers:
-            print("Creating new object for: " + str(center[0]))
-            updated_objects.append(ObjectTracker.create_object(center[0]))
+            print("Creating new object for: " + str(center))
+            updated_objects.append(ObjectTracker.create_object(center))
         self.objects = updated_objects
 
     def get_objects(self):
