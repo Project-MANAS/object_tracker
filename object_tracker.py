@@ -53,7 +53,7 @@ class ObjectTracker:
                                                     [0., 1., 0., 0.]
                                                     ], np.float64)
         kalman_filter.processNoiseCov = 1e-5 * np.eye(4, dtype=np.float64)
-        kalman_filter.measurementNoiseCov = 1e-8 * np.eye(2, dtype=np.float64)
+        kalman_filter.measurementNoiseCov = 1e-3 * np.eye(2, dtype=np.float64)
         kalman_filter.errorCovPost = 1. * np.ones((4, 4), np.float64)
         kalman_filter.statePost = 0.1 * np.random.randn(4, 1)
         init_state = np.array(list(center) + [0.0, 0.0], np.float64)  # [x, y] + [dx, dy]
@@ -136,7 +136,7 @@ class ObjectTracker:
 
 
 def print_usage():
-    print("Usage: cluster.py -i <input file> [OPTIONS]")
+    print("Usage: object_tracker.py -i <input file> [OPTIONS]")
 
 
 def main(argv):
