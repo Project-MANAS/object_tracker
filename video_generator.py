@@ -95,13 +95,15 @@ def main(argv):
         states = generate_init_states(num_objects, vx, vy, (h_res, v_res))
         while states:
             frame = np.zeros((v_res, h_res, 3), dtype=np.uint8)
+            tmp = []
             for i in range(len(states)):
                 cv2.circle(frame, (int(states[i].x), int(states[i].y)),
                            radius, (255, 255, 255), thickness=-1)
                 states[i].x += states[i].vx + random.uniform(-noise_factor, noise_factor)
                 states[i].y += states[i].vy + random.uniform(-noise_factor, noise_factor)
-                if is_outside_frame_bounds((states[i].x, states[i].y), (h_res, v_res)):
-                    del states[i]
+                if not is_outside_frame_bounds((states[i].x, states[i].y), (h_res, v_res)):
+                    tmp.append(states[i])
+            states = tmp
             vid.write(frame)
             cv2.imshow('frame', frame)
             cv2.waitKey(1)
