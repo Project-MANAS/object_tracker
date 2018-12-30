@@ -1,4 +1,5 @@
 import sys
+import getopt
 import time
 import cv2
 import numpy as np
@@ -8,7 +9,8 @@ TrackedObject = collections.namedtuple("TrackedObject", ["id", "state", "tracker
 
 
 class ObjectTracker:
-    def __init__(self, x_min=0, y_min=0, x_max=0, y_max=0, dist_threshold=10):
+    def __init__(self, x_min=0, y_min=0, x_max=0, y_max=0, dist_threshold=10, verbose=False):
+        self.verbose = verbose
         self.objects = []
         self.x_min = x_min
         self.x_max = x_max
@@ -67,7 +69,8 @@ class ObjectTracker:
         predicted_objects = []
         for obj in self.objects:
             prediction = obj.tracker.predict()
-            print("Prediction: " + str(prediction))
+            if self.verbose:
+                print("Prediction: " + str(prediction))
             predicted_objects.append(TrackedObject(obj.id, np.transpose(prediction), obj.tracker))
         # print(predicted_objects)
         return predicted_objects
@@ -99,7 +102,8 @@ class ObjectTracker:
             estimate = obj.tracker.correct(centers[closest_center_idx])
 
             updated_objects.append(TrackedObject(obj.id, estimate, obj.tracker))
-            print("Matched with object: " + str(obj.id))
+            if self.verbose:
+                print("Matched with object: " + str(obj.id))
 
             # prevent the same center from being associated with two objects
             del centers[closest_center_idx]
@@ -126,17 +130,39 @@ class ObjectTracker:
         self.update_tracked_objects(centers, next_state_predictions)
 
 
-def main():
+def print_usage():
+    print("Usage: cluster.py -i <input file> [OPTIONS]")
+
+
+def main(argv):
+    verbose = False
+    infile = ""
+
     try:
-        vid = cv2.VideoCapture(sys.argv[1])
-        print(sys.argv[1])
-    except IndexError:
+        opts, args = getopt.getopt(argv, "hvi:", ["help", "verbose", "input="])
+    except getopt.GetoptError:
+        print_usage()
+        return
+
+    for opt, arg in opts:
+        if opt=='-i' or opt=='--input':
+            infile = arg
+        if opt=='-v' or opt=='--verbose':
+            verbose = True
+        if opt=='-h' or opt=='--help':
+            print_usage()
+
+    if infile:
+        vid = cv2.VideoCapture(infile)
+        print(infile)
+    else:
         print("path to video not provided")
         return
 
-    tracker = ObjectTracker(x_max=1024, y_max=768)
+    tracker = ObjectTracker(x_max=1024, y_max=768, verbose=verbose)
     while vid.isOpened():
-        print("Reading...")
+        if verbose:
+            print("Reading...")
         ret, orig_img = vid.read()
         if ret is False:
             break
@@ -151,10 +177,10 @@ def main():
             cv2.circle(orig_img, (int(point[0]), int(point[1])), 5, (255, 0, 0))
 
         cv2.imshow("output", orig_img)
-        cv2.waitKey(1)
+        cv2.waitKey(10)
     else:
         print("Unable to open video")
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])
