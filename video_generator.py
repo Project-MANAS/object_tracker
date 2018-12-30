@@ -1,3 +1,4 @@
+#! /usr/bin/python
 import sys
 import getopt
 import cv2
@@ -6,22 +7,27 @@ import random
 
 
 def print_usage():
-    print("Usage: ./video_generator.py -o <output file>")
+    print("Usage: ./video_generator.py -o <output file> [OPTIONS]")
 
 
 def main(argv):
     try:
-        opts, args = getopt.getopt(argv, "ho:l:x:y:", ["help", "outfile=", "loops=", "hres=", "yres="])
+        opts, args = getopt.getopt(
+            argv,
+            "ho:l:x:y:r:",
+            ["help", "outfile=", "loops=", "hres=", "yres=", "radius=", "maxvelx=", "maxvely="]
+        )
     except getopt.GetoptError:
         print_usage()
+        return
 
     outfile = None
     num_loops = 1
     h_res = 1024
     v_res = 768
-    vx_max = 0.5
-    vy_max = 0.5
-    radius = 5
+    vx_max = 5.0
+    vy_max = 5.0
+    radius = 15
 
     for opt, arg in opts:
         if opt=='-h' or opt=='--help':
@@ -34,6 +40,12 @@ def main(argv):
             h_res = int(arg)
         elif opt=='-y' or opt=='--vres':
             v_res = int(arg)
+        elif opt=='-r' or opt=='--radius':
+            radius = float(opt)
+        elif opt == '--maxvelx':
+            vx_max = float(opt)
+        elif opt == '--maxvely':
+            vy_max = float(opt)
         else:
             print("Unknown option "+opt)
             print_usage()
