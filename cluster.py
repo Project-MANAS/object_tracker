@@ -9,14 +9,13 @@ TrackedObject = collections.namedtuple("TrackedObject", ["id", "state", "tracker
 
 
 class ObjectTracker:
-    def __init__(self, x_min=0, y_min=0, x_max=0, y_max=0, dist_threshold=10, verbose=False):
+    def __init__(self, x_min=0, y_min=0, x_max=0, y_max=0, verbose=False):
         self.verbose = verbose
         self.objects = []
         self.x_min = x_min
         self.x_max = x_max
         self.y_min = y_min
         self.y_max = y_max
-        self.dist_threshold = dist_threshold
 
     @staticmethod
     def get_contour_centers(img):
