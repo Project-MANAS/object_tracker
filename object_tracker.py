@@ -3,19 +3,21 @@ import getopt
 import time
 import cv2
 import numpy as np
+import scipy.optimize
 import collections
 
 TrackedObject = collections.namedtuple("TrackedObject", ["id", "state", "tracker"])
 
 
 class ObjectTracker:
-    def __init__(self, x_min=0, y_min=0, x_max=0, y_max=0, verbose=False):
+    def __init__(self, x_min=0, y_min=0, x_max=0, y_max=0, distance_threshold=50, verbose=False):
         self.verbose = verbose
         self.objects = []
         self.x_min = x_min
         self.x_max = x_max
         self.y_min = y_min
         self.y_max = y_max
+        self.threshold = distance_threshold
 
     @staticmethod
     def get_contour_centers(img):
@@ -79,44 +81,55 @@ class ObjectTracker:
         return True
 
     def update_tracked_objects(self, centers, predicted_objects):
+        """
+        Given a list of detected centers and predicted states of tracked objects,
+        this function assigns detected centers to known trackers when they're within
+        a threshold distance and then:
+            1) Updates states of currently known objects still within the tracking frame
+            2) Deletes trackers for objects that have moved out of the tracking frame
+            3) Creates trackers for objects that have wandered into the tracking frame
+
+        :param centers: List of centers detected in the image
+        :param predicted_objects: List of predicted states of currently tracked objects
+        :return: None
+        """
         updated_objects = []
-        for obj in predicted_objects:
-            # stop tracking objects outside the tracking frame
-            if not self.is_within_tracking_frame((obj.state[0], obj.state[1])):
-                print("deleting object: " + str(obj))
-                continue
+        centers = [center for center in centers if self.is_within_tracking_frame(center)]
 
-            # Not all objects we were tracking were detected in the frame
-            # Todo: Make sure matching of centers to objects works in this case
-            if not centers:
-                break
+        dist_matrix = np.zeros((len(predicted_objects), len(centers)))
 
-            closest_center_idx = 0
-            obj_center = np.array([obj.state[0], obj.state[1]])
-            for i, center in enumerate(centers):
-                closest_center = np.squeeze(centers[closest_center_idx])
-                if ObjectTracker.dist(obj_center, center) < \
-                        ObjectTracker.dist(obj_center, closest_center):
-                    closest_center_idx = i
+        for i, obj in enumerate(predicted_objects):
+            for j, center in enumerate(centers):
+                dist_matrix[i][j] = ObjectTracker.dist(obj.state[0:2], center)
+        matches = scipy.optimize.linear_sum_assignment(dist_matrix)
+        matched_objects = matches[0]
+        matched_centers = matches[1]
+        matches = list(zip(*matches))
 
-            if self.verbose:
-                print("Obj state: " + str(obj.state))
-                print("Closest center: " + str(centers[closest_center_idx]))
+        for m in matches:
+            if dist_matrix[m[0], m[1]] < self.threshold:
+                estimate = predicted_objects[m[0]].tracker.correct(centers[m[1]])
+                if self.verbose:
+                    print("Center: " + str(centers[m[1]]))
+                    print("Estimate: " + str(estimate))
 
-            estimate = obj.tracker.correct(centers[closest_center_idx])
+                updated_objects.append(TrackedObject(
+                    predicted_objects[m[0]].id,
+                    estimate,
+                    predicted_objects[m[0]].tracker
+                ))
+            else:
+                print("Deleting object beyond threshold: " + str(predicted_objects[m[0]]))
 
-            updated_objects.append(TrackedObject(obj.id, estimate, obj.tracker))
-            if self.verbose:
-                print("Matched with object: " + str(obj.id))
+        for i, obj in enumerate(predicted_objects):
+            if matched_objects is None or i not in matched_objects:
+                print("Deleting unmatched object: " + str(obj.id))
 
-            # prevent the same center from being associated with two objects
-            del centers[closest_center_idx]
-            # centers = centers[0:closest_center_idx] + centers[closest_center_idx+1:]
-
-        for center in centers:
-            if self.is_within_tracking_frame(center):
-                print("Creating new object for: " + str(center))
+        for i, center in enumerate(centers):
+            if matched_centers is None or i not in matched_centers:
+                print("Adding new object for center: " + str(center))
                 updated_objects.append(ObjectTracker.create_object(center))
+
         self.objects = updated_objects
 
     def get_objects(self):
@@ -191,7 +204,7 @@ def main(argv):
                             font, 1, (0, 255, 0), 1, cv2.LINE_AA)
 
         cv2.imshow("output", orig_img)
-        cv2.waitKey(10)
+        cv2.waitKey(50)
     else:
         print("Unable to open video")
 
