@@ -10,8 +10,9 @@ TrackedObject = collections.namedtuple("TrackedObject", ["id", "state", "tracker
 
 
 class ObjectTracker:
-    def __init__(self, x_min=0, y_min=0, x_max=0, y_max=0, distance_threshold=50, verbose=False):
+    def __init__(self, x_min=0, y_min=0, x_max=0, y_max=0, distance_threshold=50, debug=False, verbose=False):
         self.verbose = verbose
+        self.debug = debug
         self.objects = []
         self.x_min = x_min
         self.x_max = x_max
@@ -109,7 +110,7 @@ class ObjectTracker:
         for m in matches:
             if dist_matrix[m[0], m[1]] < self.threshold:
                 estimate = predicted_objects[m[0]].tracker.correct(centers[m[1]])
-                if self.verbose:
+                if self.verbose and self.debug:
                     print("Center: " + str(centers[m[1]]))
                     print("Estimate: " + str(estimate))
 
@@ -118,16 +119,18 @@ class ObjectTracker:
                     estimate,
                     predicted_objects[m[0]].tracker
                 ))
-            else:
+            elif self.debug:
                 print("Deleting object beyond threshold: " + str(predicted_objects[m[0]]))
 
-        for i, obj in enumerate(predicted_objects):
-            if matched_objects is None or i not in matched_objects:
-                print("Deleting unmatched object: " + str(obj.id))
+        if self.debug:
+            for i, obj in enumerate(predicted_objects):
+                if matched_objects is None or i not in matched_objects:
+                    print("Deleting unmatched object: " + str(obj.id))
 
         for i, center in enumerate(centers):
             if matched_centers is None or i not in matched_centers:
-                print("Adding new object for center: " + str(center))
+                if self.debug:
+                    print("Adding new object for center: " + str(center))
                 updated_objects.append(ObjectTracker.create_object(center))
 
         self.objects = updated_objects
@@ -153,12 +156,13 @@ def print_usage():
 
 
 def main(argv):
+    debug = False
     verbose = False
     infile = ""
     show_obj_info = False
 
     try:
-        opts, args = getopt.getopt(argv, "hvsi:", ["help", "verbose", "show-info", "input="])
+        opts, args = getopt.getopt(argv, "hdvsi:", ["help", "debug", "verbose", "show-info", "input="])
     except getopt.GetoptError:
         print_usage()
         return
@@ -166,6 +170,8 @@ def main(argv):
     for opt, arg in opts:
         if opt=='-i' or opt=='--input':
             infile = arg
+        elif opt=='-d' or opt=='--debug':
+            debug = True
         elif opt=='-v' or opt=='--verbose':
             verbose = True
         elif opt=='-h' or opt=='--help':
@@ -180,7 +186,7 @@ def main(argv):
         print("path to video not provided")
         return
 
-    tracker = ObjectTracker(x_max=1013, y_max=757, verbose=verbose)
+    tracker = ObjectTracker(x_min=10, y_min=10, x_max=1013, y_max=757, debug=debug, verbose=verbose)
     font = cv2.FONT_HERSHEY_PLAIN
 
     while vid.isOpened():
@@ -204,7 +210,7 @@ def main(argv):
                             font, 1, (0, 255, 0), 1, cv2.LINE_AA)
 
         cv2.imshow("output", orig_img)
-        cv2.waitKey(50)
+        cv2.waitKey(10)
     else:
         print("Unable to open video")
 
