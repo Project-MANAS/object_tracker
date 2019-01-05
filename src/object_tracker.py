@@ -19,6 +19,7 @@ class ObjectTracker:
         self.y_min = y_min
         self.y_max = y_max
         self.threshold = distance_threshold
+        self.id_counter = 0
 
     @staticmethod
     def get_contour_centers(img):
@@ -30,16 +31,18 @@ class ObjectTracker:
         :param img: A single channel image
         :return: A list of object centers
         """
-
-        contours, hierarchy = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        major_version = int(cv2.__version__.split('.')[0])
+        if major_version == 4:
+            contours, hierarchy = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        else:
+            im2, contours, hierarchy = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         return [np.squeeze(np.mean(contour, axis=0)) for contour in contours]
 
     @staticmethod
     def dist(p1, p2):
         return ((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2)**0.5
 
-    @staticmethod
-    def create_object(center):
+    def create_object(self, center):
 
         """
         Add a previously unknown object to the tracker
@@ -62,7 +65,8 @@ class ObjectTracker:
         init_state = np.array(list(center) + [0.0, 0.0], np.float64)  # [x, y] + [dx, dy]
         kalman_filter.statePre = init_state.transpose()
         kalman_filter.correct(np.array(center, dtype=np.float64))
-        obj_id = time.time()
+        obj_id = self.id_counter
+        self.id_counter +=1
         return TrackedObject(obj_id, init_state, kalman_filter)
 
     def get_next_state_predictions(self):
@@ -131,7 +135,7 @@ class ObjectTracker:
             if matched_centers is None or i not in matched_centers:
                 if self.debug:
                     print("Adding new object for center: " + str(center))
-                updated_objects.append(ObjectTracker.create_object(center))
+                updated_objects.append(self.create_object(center))
 
         self.objects = updated_objects
 
