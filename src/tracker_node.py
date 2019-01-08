@@ -35,6 +35,10 @@ class TrackerNode:
             detected_object.variance.x = obj.tracker.errorCovPost[0, 0]
             detected_object.variance.y = obj.tracker.errorCovPost[1, 1]
             detected_object.variance.z = 0
+            if obj.bounding_box:
+                detected_object.dimensions.x = obj.bounding_box[2]
+                detected_object.dimensions.y = obj.bounding_box[3]
+            detected_object.dimensions.z = 0
             detected_objects.append(detected_object)
         # Add to array of detected objects
         # Convert to message

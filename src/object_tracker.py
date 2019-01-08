@@ -6,7 +6,7 @@ import numpy as np
 import scipy.optimize
 import collections
 
-TrackedObject = collections.namedtuple("TrackedObject", ["id", "state", "tracker"])
+TrackedObject = collections.namedtuple("TrackedObject", ["id", "state", "tracker", "bounding_box"])
 
 
 class ObjectTracker:
@@ -22,11 +22,11 @@ class ObjectTracker:
         self.id_counter = 0
 
     @staticmethod
-    def get_contour_centers(img):
+    def get_object_descriptors(img):
 
         """
         Given a binary image with white filled in object silhouettes on a black background,
-        the function finds and returns centers of these objects as a list
+        the function finds and returns centers of these objects as a list and their bounding boxes
 
         :param img: A single channel image
         :return: A list of object centers
@@ -36,13 +36,14 @@ class ObjectTracker:
             contours, hierarchy = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         else:
             im2, contours, hierarchy = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        return [np.squeeze(np.mean(contour, axis=0)) for contour in contours]
+        bounding_boxes = [cv2.boundingRect(contour) for contour in contours]
+        return [np.squeeze(np.mean(contour, axis=0)) for contour in contours], bounding_boxes
 
     @staticmethod
     def dist(p1, p2):
         return ((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2)**0.5
 
-    def create_object(self, center):
+    def create_object(self, center, bounding_box):
 
         """
         Add a previously unknown object to the tracker
@@ -67,13 +68,13 @@ class ObjectTracker:
         kalman_filter.correct(np.array(center, dtype=np.float64))
         obj_id = self.id_counter
         self.id_counter +=1
-        return TrackedObject(obj_id, init_state, kalman_filter)
+        return TrackedObject(obj_id, init_state, kalman_filter, bounding_box)
 
     def get_next_state_predictions(self):
         predicted_objects = []
         for obj in self.objects:
             prediction = obj.tracker.predict()
-            predicted_objects.append(TrackedObject(obj.id, np.transpose(prediction), obj.tracker))
+            predicted_objects.append(TrackedObject(obj.id, np.transpose(prediction), obj.tracker, obj.bounding_box))
         # print(predicted_objects)
         return predicted_objects
 
@@ -85,7 +86,7 @@ class ObjectTracker:
             return False
         return True
 
-    def update_tracked_objects(self, centers, predicted_objects):
+    def update_tracked_objects(self, centers, bounding_boxes, predicted_objects):
         """
         Given a list of detected centers and predicted states of tracked objects,
         this function assigns detected centers to known trackers when they're within
@@ -95,6 +96,7 @@ class ObjectTracker:
             3) Creates trackers for objects that have wandered into the tracking frame
 
         :param centers: List of centers detected in the image
+        :param bounding_boxes: a list of bounding boxes of the objects in the image
         :param predicted_objects: List of predicted states of currently tracked objects
         :return: None
         """
@@ -121,7 +123,8 @@ class ObjectTracker:
                 updated_objects.append(TrackedObject(
                     predicted_objects[m[0]].id,
                     estimate,
-                    predicted_objects[m[0]].tracker
+                    predicted_objects[m[0]].tracker,
+                    bounding_boxes[m[1]]
                 ))
             elif self.debug:
                 print("Deleting object beyond threshold: " + str(predicted_objects[m[0]]))
@@ -135,7 +138,7 @@ class ObjectTracker:
             if matched_centers is None or i not in matched_centers:
                 if self.debug:
                     print("Adding new object for center: " + str(center))
-                updated_objects.append(self.create_object(center))
+                updated_objects.append(self.create_object(center, bounding_boxes[i]))
 
         self.objects = updated_objects
 
@@ -150,9 +153,9 @@ class ObjectTracker:
         :return: None
         """
 
-        centers = ObjectTracker.get_contour_centers(img)
+        centers, bounding_boxes = ObjectTracker.get_object_descriptors(img)
         next_state_predictions = self.get_next_state_predictions()
-        self.update_tracked_objects(centers, next_state_predictions)
+        self.update_tracked_objects(centers, bounding_boxes, next_state_predictions)
 
 
 def print_usage():
@@ -206,6 +209,12 @@ def main(argv):
         for obj in tracker.get_objects():
             point = tuple(obj.state[0:2])
             cv2.circle(orig_img, (int(point[0]), int(point[1])), 5, (255, 0, 0))
+            cv2.rectangle(
+                orig_img,
+                (obj.bounding_box[0], obj.bounding_box[1]),
+                (obj.bounding_box[0]+obj.bounding_box[2], obj.bounding_box[1]+obj.bounding_box[3]),
+                (0, 255, 0)
+            )
             if show_obj_info:
                 label = "id: " + str(obj.id) \
                         + " vx: " + str(obj.state[2]) \
