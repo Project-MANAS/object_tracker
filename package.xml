@@ -2,7 +2,7 @@
 <package format="2">
   <name>objecttracker</name>
   <version>0.0.0</version>
-  <description>The objecttracker package</description>
+  <description>A Kalman-filter based object tracker that can track objects in a binary thresholded image.</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
   <!-- Example:  -->
