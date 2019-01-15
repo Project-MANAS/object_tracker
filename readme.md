@@ -44,3 +44,17 @@ Optional options include:
 
 *Note:* Long options that require areguments are used with an '=' sign.
 eg: --noise-factor=5
+
+## ROS wrapper usage
+
+To run the ObjectTracker as a ROS node, build the package inside your catkin workspace and run
+```bash
+rosrun objecttracker tracker_node.py
+```
+tracker_node.py subscribes to ```CompressedImage``` messages on the ```tracking_frames``` topic and publishes ```DetectedObjectArray``` messages to the ```tracked_objects``` topic
+
+To test tracker_node with dummy data, run:
+```bash
+rosrun onjecttracker video_generator_node.py
+```
+```video_generator_node``` publishes dummy binary thresholded data onto the ```tracking_frames``` topic

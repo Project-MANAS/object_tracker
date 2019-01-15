@@ -1,0 +1,61 @@
+variables:
+  # ROS_PACKAGES_TO_INSTALL: ""
+  GLOBAL_C11: "true"
+
+before_script:
+  - git clone https://gitlab.com/VictorLamoine/ros_gitlab_ci.git
+  - source ros_gitlab_ci/gitlab-ci.bash >/dev/null
+  - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/project-manas/ai/vectornav
+
+cache:
+  paths:
+    - ccache/
+
+# catkin_lint
+catkin lint:
+  stage: build
+  image: ros:melodic-ros-core
+  before_script:
+    - apt update  >/dev/null 2>&1
+    - apt install -y python-catkin-lint >/dev/null 2>&1
+  script:
+    - catkin_lint -W3 .
+
+# Tests for Melodic
+melodic-catkin_make:
+  image: ros:melodic-ros-core
+  stage: build
+  script:
+    - catkin_make
+
+melodic-catkin_build:
+  image: ros:melodic-ros-core
+  stage: build
+  script:
+    - catkin build --summarize --no-status --force-color
+
+# Tests for Kinetic
+kinetic-catkin_make:
+  image: ros:kinetic-ros-core
+  stage: build
+  script:
+    - catkin_make
+
+kinetic-catkin_build:
+  image: ros:kinetic-ros-core
+  stage: build
+  script:
+    - catkin build --summarize --no-status --force-color
+
+# Tests for Indigo
+indigo-catkin_make:
+  image: ros:indigo-ros-core
+  stage: build
+  script:
+    - catkin_make
+
+indigo-catkin_build:
+  image: ros:indigo-ros-core
+  stage: build
+  script:
+    - catkin build --summarize --no-status --force-color
