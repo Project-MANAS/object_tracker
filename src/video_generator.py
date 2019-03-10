@@ -99,7 +99,7 @@ def main(argv):
         elif opt=='-y' or opt=='--vres':
             v_res = int(arg)
         elif opt=='-r' or opt=='--radius':
-            radius = float(opt)
+            radius = int(arg)
         elif opt=='-n' or opt=='--noise-factor':
             noise_factor = float(arg)
         elif opt=='-b' or opt=='--num-objects':
