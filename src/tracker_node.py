@@ -44,6 +44,8 @@ class TrackerNode:
         # Convert to message
         detected_obj_array = DetectedObjectArray()
         detected_obj_array.objects = detected_objects
+        detected_obj_array.header.stamp = data.header.stamp
+        print(detected_obj_array.header.stamp)
         self.publisher.publish(detected_obj_array)
 
 
