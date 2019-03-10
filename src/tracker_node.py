@@ -16,6 +16,7 @@ class TrackerNode:
     def callback(self, data):
         np_arr = np.fromstring(data.data, np.uint8)
         img = cv2.imdecode(np_arr, cv2.IMREAD_GRAYSCALE)
+        thresh, img = cv2.threshold(img, 127, 255, 0)
         self.tracker.track_frame(img)
         detected_objects = []
         objects = self.tracker.get_objects()
@@ -45,13 +46,12 @@ class TrackerNode:
         detected_obj_array = DetectedObjectArray()
         detected_obj_array.objects = detected_objects
         detected_obj_array.header.stamp = data.header.stamp
-        print(detected_obj_array.header.stamp)
         self.publisher.publish(detected_obj_array)
 
 
 def main():
     rospy.init_node('tracker_node')
-    TrackerNode()
+    TrackerNode(640,480)
 
 
 if __name__ == "__main__":
