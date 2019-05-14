@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<launch>
+    <node pkg="objecttracker" type="tracker_node.py" name="tracker_node"/>
+    <node pkg="objecttracker" type="video_generator_node.py" name="video_generator"/>
+    <node pkg="objecttracker" type="visualizer_node.py" name="visualizer"/>
+</launch>
