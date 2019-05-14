@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/python
 import rospy
 import cv2
 import message_filters
@@ -12,7 +12,7 @@ class ObjectVisualizer:
         obj_sub = message_filters.Subscriber("tracked_objects", DetectedObjectArray)
         ts = message_filters.TimeSynchronizer([img_sub, obj_sub], 20)
         ts.registerCallback(self.callback)
-        self.show_obj_info = False
+        self.show_obj_info = True 
         rospy.spin()
         
         
@@ -40,6 +40,7 @@ class ObjectVisualizer:
                 label = "id: " + str(obj.id) \
                         + " vx: " + str(obj.velocity.linear.x) \
                         + " vy: " + str(obj.velocity.linear.y)
+                font = cv2.FONT_HERSHEY_PLAIN
                 cv2.putText(img, label, (int(point[0]+3), int(point[1]+3)),
                             font, 1, (0, 255, 0), 1, cv2.LINE_AA)
         cv2.imshow("output", img)

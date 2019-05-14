@@ -223,7 +223,7 @@ def main(argv):
                             font, 1, (0, 255, 0), 1, cv2.LINE_AA)
 
         cv2.imshow("output", orig_img)
-        cv2.waitKey(10)
+        cv2.waitKey(20)
     else:
         print("Unable to open video")
 
